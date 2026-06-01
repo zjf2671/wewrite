@@ -726,6 +726,7 @@ def generate_image(
 
     for provider in chain:
         resolved_size = provider.resolve_size(size)
+        raw_bytes = None
         for attempt in range(max_retries + 1):
             try:
                 raw_bytes = provider.generate(prompt, resolved_size)
@@ -768,7 +769,9 @@ def generate_image(
                     file=sys.stderr,
                 )
                 break
-            except ValueError as e:
+            except Exception as e:
+                # Any other provider error (malformed/empty response, KeyError,
+                # IndexError from safety-blocked empty candidates, etc.) -> fall back.
                 last_error = e
                 print(
                     _sanitize_for_log(
@@ -778,8 +781,9 @@ def generate_image(
                     file=sys.stderr,
                 )
                 break
-        else:
-            continue  # all retries exhausted, try next provider
+
+        if raw_bytes is None:
+            continue  # this provider failed all attempts, try the next one
 
         # Compress if over 5MB (WeChat upload limit)
         if len(raw_bytes) > MAX_FILE_SIZE:
